@@ -30,7 +30,7 @@ y_bins = pd.qcut(y, q=5, labels=False, duplicates="drop")
 X_train, X_test, y_train, y_test = train_test_split(
     X,
     y,
-    test_size=0.25,
+    test_size=0.4,
     stratify=y_bins,
     random_state=42
 )
@@ -97,7 +97,7 @@ results = {
     "model": "Random Forest (Top 6 Features)",
     "hyperparameters": "n_estimators=150, max_depth=15",
     "feature_selection": "Top 6 via feature_importances_",
-    "split": "75/25 (Stratified)",
+    "split": "60/40 (Stratified)",
     "selected_features": selected_features,
     "mse": mse,
     "r2_score": r2
