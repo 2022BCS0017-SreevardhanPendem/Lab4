@@ -52,7 +52,13 @@ r2 = r2_score(y_test, y_pred)
 print(f"Mean Squared Error (MSE): {mse}")
 print(f"R2 Score: {r2}")
 
-joblib.dump(model, MODEL_PATH)
+joblib.dump(
+    {
+        "model": model,
+        "selected_features": selected_features
+    },
+    "outputs/model.joblib"
+)
 
 results = {
     "experiment_id": "EXP-08",
