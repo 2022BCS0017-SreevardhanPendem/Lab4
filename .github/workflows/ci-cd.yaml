@@ -5,9 +5,9 @@ on:
     branches: ["main"]
 
 jobs:
-# =========================
-# JOB 1: TRAIN
-# =========================
+# =========================================================
+# JOB 1: TRAIN (CONTINUOUS INTEGRATION)
+# =========================================================
   train:
     runs-on: ubuntu-latest
 
@@ -41,9 +41,9 @@ jobs:
           path: outputs/results.json
 
 
-# =========================
-# JOB 2: DEPLOY
-# =========================
+# =========================================================
+# JOB 2: DEPLOY (CONTINUOUS DEPLOYMENT)
+# =========================================================
   deploy:
     needs: train
     runs-on: ubuntu-latest
@@ -73,8 +73,8 @@ jobs:
 
       - name: Compare metrics with baseline
         run: |
-          echo "Previous BEST R2: ${{ vars.R2SCORE }}"
-          echo "Previous BEST MSE: ${{ vars.MSE_SCORE }}"
+          echo "Previous R2: ${{ vars.R2SCORE }}"
+          echo "Previous MSE: ${{ vars.MSE_SCORE }}"
           echo "Current R2: $R2"
           echo "Current MSE: $MSE"
 
@@ -100,16 +100,18 @@ jobs:
 
       - name: Update R2SCORE variable
         run: |
-          curl -X PATCH \
-            -H "Authorization: token ${{ secrets.GH_PAT }}" \
+          echo "Updating R2SCORE to $R2"
+          curl -X PUT \
+            -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ github.repository }}/actions/variables/R2SCORE \
             -d "{\"name\":\"R2SCORE\",\"value\":\"$R2\"}"
 
       - name: Update MSE_SCORE variable
         run: |
-          curl -X PATCH \
-            -H "Authorization: token ${{ secrets.GH_PAT }}" \
+          echo "Updating MSE_SCORE to $MSE"
+          curl -X PUT \
+            -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ github.repository }}/actions/variables/MSE_SCORE \
             -d "{\"name\":\"MSE_SCORE\",\"value\":\"$MSE\"}"
