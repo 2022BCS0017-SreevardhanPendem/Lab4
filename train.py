@@ -2,7 +2,7 @@ import os
 import json
 import joblib
 import pandas as pd
-
+import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
@@ -42,6 +42,8 @@ model = RandomForestRegressor(
 )
 model.fit(X_train, y_train)
 
+
+
 # ------------------ EVALUATION ------------------
 y_pred = model.predict(X_test)
 
@@ -51,7 +53,11 @@ r2 = r2_score(y_test, y_pred)
 # ------------------ OUTPUT ------------------
 print(f"Mean Squared Error (MSE): {mse}")
 print(f"R2 Score: {r2}")
+importances = model.feature_importances_
+feature_names = X.columns
 
+indices = np.argsort(importances)[::-1][:6]
+selected_features = list(feature_names[indices])
 joblib.dump(
     {
         "model": model,
