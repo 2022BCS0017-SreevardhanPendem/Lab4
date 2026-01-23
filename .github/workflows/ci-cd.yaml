@@ -84,11 +84,11 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t sreevardhanpendem/wine_predict_2022bcs0017_Lab4:latest .
+          docker build -t sreevardhanpendem/wine_predict_2022bcs0017_lab4:latest .
 
       - name: Push Docker image
         run: |
-          docker push sreevardhanpendem/wine_predict_2022bcs0017_Lab4:latest
+          docker push sreevardhanpendem/wine_predict_2022bcs0017_lab4:latest
 
       - name: Update BEST_R2 variable
         run: |
