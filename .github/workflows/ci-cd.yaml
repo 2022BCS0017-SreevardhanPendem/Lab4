@@ -1,17 +1,14 @@
-name: CI-CD Pipeline (Lab 4)
-
-permissions:
-  actions: write
-  contents: read
+name: Train and Deploy Model (Lab 4)
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
 
 jobs:
-# ===============================
+# =====================================================
 # JOB 1: TRAIN
-# ===============================
+# =====================================================
   train:
     runs-on: ubuntu-latest
 
@@ -26,9 +23,10 @@ jobs:
 
       - name: Install dependencies
         run: |
+          pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run training
+      - name: Train model
         run: |
           python train.py
 
@@ -45,9 +43,9 @@ jobs:
           path: outputs/results.json
 
 
-# ===============================
+# =====================================================
 # JOB 2: DEPLOY
-# ===============================
+# =====================================================
   deploy:
     needs: train
     runs-on: ubuntu-latest
@@ -67,55 +65,59 @@ jobs:
         with:
           name: metrics
 
-      - name: Read metrics
+      - name: Read and compare metrics (HARD GATE)
+        id: compare
         run: |
-          R2=$(jq '.r2_score' results.json)
-          MSE=$(jq '.mse' results.json)
+          python - <<EOF
+          import json, sys
 
-          echo "R2=$R2" >> $GITHUB_ENV
-          echo "MSE=$MSE" >> $GITHUB_ENV
+          with open("results.json") as f:
+              m = json.load(f)
 
-      - name: Compare metrics with baseline
+          cr2 = float(m["r2_score"])
+          cmse = float(m["mse"])
+
+          br2 = float("${{ vars.R2SCORE }}")
+          bmse = float("${{ vars.MSE_SCORE }}")
+
+          print(f"Current R2: {cr2}")
+          print(f"Current MSE: {cmse}")
+          print(f"Best R2: {br2}")
+          print(f"Best MSE: {bmse}")
+
+          if cr2 > br2 and cmse < bmse:
+              with open("${{ github.output }}", "a") as f:
+                  f.write("deploy=true\n")
+                  f.write(f"current_r2={cr2}\n")
+                  f.write(f"current_mse={cmse}\n")
+          else:
+              print("2022BCS0017 ---- Metric did not improve")
+              sys.exit(1)
+          EOF
+
+      - name: Authenticate GitHub CLI
+        if: steps.compare.outputs.deploy == 'true'
         run: |
-          echo "Previous R2: ${{ vars.R2SCORE }}"
-          echo "Previous MSE: ${{ vars.MSE_SCORE }}"
-          echo "Current R2: $R2"
-          echo "Current MSE: $MSE"
-
-          if (( $(echo "$R2 <= ${{ vars.R2SCORE }}" | bc -l) )) && \
-             (( $(echo "$MSE >= ${{ vars.MSE_SCORE }}" | bc -l) )); then
-            echo "2022BCS0017 ---- Metric did not improve"
-            exit 0
-          fi
+          echo "${{ secrets.GH_ACCESS_TOKEN }}" | gh auth login --with-token
 
       - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN }}
+        if: steps.compare.outputs.deploy == 'true'
+        run: |
+          echo "${{ secrets.DOCKERHUB_ACCESS_TOKEN }}" | docker login \
+            -u "${{ secrets.DOCKERHUB_USERNAME }}" --password-stdin
 
       - name: Build Docker image
+        if: steps.compare.outputs.deploy == 'true'
         run: |
           docker build -t sreevardhanpendem/wine_predict_2022bcs0017_lab4:latest .
 
       - name: Push Docker image
+        if: steps.compare.outputs.deploy == 'true'
         run: |
           docker push sreevardhanpendem/wine_predict_2022bcs0017_lab4:latest
 
-      - name: Update R2SCORE variable
+      - name: Update baseline metrics (GitHub Variables)
+        if: steps.compare.outputs.deploy == 'true'
         run: |
-          echo "Updating R2SCORE to $R2"
-          curl -X PUT \
-            -H "Authorization: Bearer ${{ secrets.GH_ACCESS_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/variables/R2SCORE \
-            -d "{\"name\":\"R2SCORE\",\"value\":\"$R2\"}"
-
-      - name: Update MSE_SCORE variable
-        run: |
-          echo "Updating MSE_SCORE to $MSE"
-          curl -X PUT \
-            -H "Authorization: Bearer ${{ secrets.GH_ACCESS_TOKEN }}" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/actions/variables/MSE_SCORE \
-            -d "{\"name\":\"MSE_SCORE\",\"value\":\"$MSE\"}"
+          gh variable set R2SCORE --body "${{ steps.compare.outputs.current_r2 }}"
+          gh variable set MSE_SCORE --body "${{ steps.compare.outputs.current_mse }}"
