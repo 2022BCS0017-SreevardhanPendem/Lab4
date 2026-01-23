@@ -1,13 +1,17 @@
 name: CI-CD Pipeline (Lab 4)
 
+permissions:
+  actions: write
+  contents: read
+
 on:
   push:
     branches: ["main"]
 
 jobs:
-# =========================================================
-# JOB 1: TRAIN (CONTINUOUS INTEGRATION)
-# =========================================================
+# ===============================
+# JOB 1: TRAIN
+# ===============================
   train:
     runs-on: ubuntu-latest
 
@@ -41,9 +45,9 @@ jobs:
           path: outputs/results.json
 
 
-# =========================================================
-# JOB 2: DEPLOY (CONTINUOUS DEPLOYMENT)
-# =========================================================
+# ===============================
+# JOB 2: DEPLOY
+# ===============================
   deploy:
     needs: train
     runs-on: ubuntu-latest
@@ -102,7 +106,7 @@ jobs:
         run: |
           echo "Updating R2SCORE to $R2"
           curl -X PUT \
-            -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
+            -H "Authorization: Bearer ${{ secrets.GH_ACCESS_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ github.repository }}/actions/variables/R2SCORE \
             -d "{\"name\":\"R2SCORE\",\"value\":\"$R2\"}"
@@ -111,7 +115,7 @@ jobs:
         run: |
           echo "Updating MSE_SCORE to $MSE"
           curl -X PUT \
-            -H "Authorization: Bearer ${{ secrets.GH_PAT }}" \
+            -H "Authorization: Bearer ${{ secrets.GH_ACCESS_TOKEN }}" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ github.repository }}/actions/variables/MSE_SCORE \
             -d "{\"name\":\"MSE_SCORE\",\"value\":\"$MSE\"}"
