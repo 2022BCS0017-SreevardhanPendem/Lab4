@@ -55,26 +55,31 @@ pipeline {
         stage('Compare Metrics') {
             steps {
                 script {
-                    def bestR2 = credentials('best-r2')
-                    def bestMSE = credentials('best-mse')
-
-                    echo "Best R2: ${bestR2}"
-                    echo "Best MSE: ${bestMSE}"
-
-                    if (env.CURRENT_R2.toFloat() > bestR2.toFloat() &&
-                        env.CURRENT_MSE.toFloat() < bestMSE.toFloat()) {
-
-                        env.DEPLOY = "true"
-                        echo "Model improved → Deployment allowed"
-
-                    } else {
-
-                        env.DEPLOY = "false"
-                        echo "Model did not improve → Deployment skipped"
+                    withCredentials([
+                        string(credentialsId: 'best-r2', variable: 'BEST_R2'),
+                        string(credentialsId: 'best-mse', variable: 'BEST_MSE')
+                    ]) {
+        
+                        float currentR2 = env.CURRENT_R2.toFloat()
+                        float currentMSE = env.CURRENT_MSE.toFloat()
+                        float bestR2 = BEST_R2.toFloat()
+                        float bestMSE = BEST_MSE.toFloat()
+        
+                        echo "Best R2: ${bestR2}"
+                        echo "Best MSE: ${bestMSE}"
+        
+                        if (currentR2 > bestR2 && currentMSE < bestMSE) {
+                            env.DEPLOY = "true"
+                            echo "Model improved → Deployment allowed"
+                        } else {
+                            env.DEPLOY = "false"
+                            echo "Model did not improve → Deployment skipped"
+                        }
                     }
                 }
             }
         }
+
 
         // Stage 6: Build Docker Image (Conditional)
         stage('Build Docker Image') {
