@@ -56,8 +56,8 @@ pipeline {
             steps {
                 script {
                     withCredentials([
-                        string(credentialsId: 'best-r2', variable: 'BEST_R2'),
-                        string(credentialsId: 'best-mse', variable: 'BEST_MSE')
+                        string(credentialsId: 'BEST_R2', variable: 'BEST_R2'),
+                        string(credentialsId: 'BEST_MSE', variable: 'BEST_MSE')
                     ]) {
         
                         float currentR2 = env.CURRENT_R2.toFloat()
@@ -79,6 +79,7 @@ pipeline {
                 }
             }
         }
+
 
 
         // Stage 6: Build Docker Image (Conditional)
