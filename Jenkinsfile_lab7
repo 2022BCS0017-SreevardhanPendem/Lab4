@@ -5,6 +5,7 @@ pipeline {
         IMAGE_NAME = "sreevardhanpendem/wine_predict_2022bcs0017_lab6:latest"
         CONTAINER_NAME = "wine-test-container"
         PORT = "8000"
+        CONTAINER_IP = ""
     }
 
     stages {
@@ -24,13 +25,29 @@ pipeline {
         stage('Run Container') {
             steps {
                 sh """
-                docker run -d --network host --name wine-test-container ${IMAGE_NAME}
+                docker run -d -p 8000:8000 --name ${CONTAINER_NAME} ${IMAGE_NAME}
                 """
             }
         }
 
         // ==========================
-        // Stage 3: Wait for Readiness
+        // Stage 3: Get Container IP
+        // ==========================
+        stage('Get Container IP') {
+            steps {
+                script {
+                    env.CONTAINER_IP = sh(
+                        script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME}",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Container IP: ${env.CONTAINER_IP}"
+                }
+            }
+        }
+
+        // ==========================
+        // Stage 4: Wait for Service
         // ==========================
         stage('Wait for Service') {
             steps {
@@ -38,9 +55,11 @@ pipeline {
                     timeout(time: 30, unit: 'SECONDS') {
                         waitUntil {
                             def status = sh(
-                                script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT}/docs",
+                                script: "curl -s -o /dev/null -w '%{http_code}' http://${env.CONTAINER_IP}:${PORT}/docs || true",
                                 returnStdout: true
                             ).trim()
+
+                            echo "Status: ${status}"
                             return (status == "200")
                         }
                     }
@@ -49,13 +68,17 @@ pipeline {
         }
 
         // ==========================
-        // Stage 4: Valid Inference
+        // Stage 5: Valid Inference
         // ==========================
         stage('Valid Inference Test') {
             steps {
                 script {
                     def response = sh(
-                        script: "curl -s -X POST http://localhost:${PORT}/predict -H 'Content-Type: application/json' -d @tests/valid.json",
+                        script: """
+                        curl -s -X POST http://${env.CONTAINER_IP}:${PORT}/predict \
+                        -H 'Content-Type: application/json' \
+                        -d @tests/valid.json
+                        """,
                         returnStdout: true
                     ).trim()
 
@@ -75,13 +98,18 @@ pipeline {
         }
 
         // ==========================
-        // Stage 5: Invalid Request
+        // Stage 6: Invalid Inference
         // ==========================
         stage('Invalid Inference Test') {
             steps {
                 script {
                     def status = sh(
-                        script: "curl -s -o response.txt -w '%{http_code}' -X POST http://localhost:${PORT}/predict -H 'Content-Type: application/json' -d @tests/invalid.json",
+                        script: """
+                        curl -s -o response.txt -w '%{http_code}' \
+                        -X POST http://${env.CONTAINER_IP}:${PORT}/predict \
+                        -H 'Content-Type: application/json' \
+                        -d @tests/invalid.json
+                        """,
                         returnStdout: true
                     ).trim()
 
@@ -95,7 +123,7 @@ pipeline {
         }
 
         // ==========================
-        // Stage 6: Stop Container
+        // Stage 7: Stop Container
         // ==========================
         stage('Stop Container') {
             steps {
