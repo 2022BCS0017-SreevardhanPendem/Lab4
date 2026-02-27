@@ -1,0 +1,118 @@
+pipeline {
+    agent any
+
+    environment {
+        IMAGE_NAME = "sreevardhanpendem/wine_predict_2022bcs0017_lab6:latest"
+        CONTAINER_NAME = "wine-test-container"
+        PORT = "8000"
+    }
+
+    stages {
+
+        // ==========================
+        // Stage 1: Pull Image
+        // ==========================
+        stage('Pull Image') {
+            steps {
+                sh "docker pull ${IMAGE_NAME}"
+            }
+        }
+
+        // ==========================
+        // Stage 2: Run Container
+        // ==========================
+        stage('Run Container') {
+            steps {
+                sh """
+                docker run -d -p ${PORT}:8000 --name ${CONTAINER_NAME} ${IMAGE_NAME}
+                """
+            }
+        }
+
+        // ==========================
+        // Stage 3: Wait for Readiness
+        // ==========================
+        stage('Wait for Service') {
+            steps {
+                script {
+                    timeout(time: 30, unit: 'SECONDS') {
+                        waitUntil {
+                            def status = sh(
+                                script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT}/docs",
+                                returnStdout: true
+                            ).trim()
+                            return (status == "200")
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================
+        // Stage 4: Valid Inference
+        // ==========================
+        stage('Valid Inference Test') {
+            steps {
+                script {
+                    def response = sh(
+                        script: "curl -s -X POST http://localhost:${PORT}/predict -H 'Content-Type: application/json' -d @tests/valid.json",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Valid Response: ${response}"
+
+                    def parsed = new groovy.json.JsonSlurper().parseText(response)
+
+                    if (!parsed.predicted_quality) {
+                        error("Prediction field missing!")
+                    }
+
+                    if (!(parsed.predicted_quality instanceof Number)) {
+                        error("Prediction is not numeric!")
+                    }
+                }
+            }
+        }
+
+        // ==========================
+        // Stage 5: Invalid Request
+        // ==========================
+        stage('Invalid Inference Test') {
+            steps {
+                script {
+                    def status = sh(
+                        script: "curl -s -o response.txt -w '%{http_code}' -X POST http://localhost:${PORT}/predict -H 'Content-Type: application/json' -d @tests/invalid.json",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Invalid Request Status Code: ${status}"
+
+                    if (status == "200") {
+                        error("Invalid request should not return 200!")
+                    }
+                }
+            }
+        }
+
+        // ==========================
+        // Stage 6: Stop Container
+        // ==========================
+        stage('Stop Container') {
+            steps {
+                sh """
+                docker stop ${CONTAINER_NAME} || true
+                docker rm ${CONTAINER_NAME} || true
+                """
+            }
+        }
+    }
+
+    post {
+        always {
+            sh """
+            docker stop ${CONTAINER_NAME} || true
+            docker rm ${CONTAINER_NAME} || true
+            """
+        }
+    }
+}
