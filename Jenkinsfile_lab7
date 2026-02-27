@@ -15,6 +15,15 @@ pipeline {
             }
         }
 
+        stage('Clean Old Container') {
+            steps {
+                sh """
+                docker stop ${CONTAINER_NAME} || true
+                docker rm ${CONTAINER_NAME} || true
+                """
+            }
+        }
+
         stage('Run Container') {
             steps {
                 sh """
@@ -26,6 +35,8 @@ pipeline {
         stage('Wait for Service') {
             steps {
                 script {
+                    sleep 5   // allow uvicorn to boot
+
                     timeout(time: 40, unit: 'SECONDS') {
                         waitUntil {
                             def status = sh(
