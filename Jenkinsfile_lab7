@@ -27,20 +27,32 @@ pipeline {
         stage('Run Container') {
             steps {
                 sh """
-                docker run -d --network host --name ${CONTAINER_NAME} ${IMAGE_NAME}
+                docker run -d -p 8000:8000 --name ${CONTAINER_NAME} ${IMAGE_NAME}
                 """
+            }
+        }
+
+        stage('Get Container IP') {
+            steps {
+                script {
+                    env.CONTAINER_IP = sh(
+                        script: "docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' ${CONTAINER_NAME}",
+                        returnStdout: true
+                    ).trim()
+
+                    echo "Container IP: ${env.CONTAINER_IP}"
+                }
             }
         }
 
         stage('Wait for Service') {
             steps {
                 script {
-                    sleep 5   // allow uvicorn to boot
-
+                    sleep 5
                     timeout(time: 40, unit: 'SECONDS') {
                         waitUntil {
                             def status = sh(
-                                script: "curl -s -o /dev/null -w '%{http_code}' http://localhost:${PORT}/docs || true",
+                                script: "curl -s -o /dev/null -w '%{http_code}' http://${env.CONTAINER_IP}:${PORT}/docs || true",
                                 returnStdout: true
                             ).trim()
 
@@ -57,7 +69,7 @@ pipeline {
                 script {
                     def response = sh(
                         script: """
-                        curl -s -X POST http://localhost:${PORT}/predict \
+                        curl -s -X POST http://${env.CONTAINER_IP}:${PORT}/predict \
                         -H 'Content-Type: application/json' \
                         -d @tests/valid.json
                         """,
@@ -85,7 +97,7 @@ pipeline {
                     def status = sh(
                         script: """
                         curl -s -o response.txt -w '%{http_code}' \
-                        -X POST http://localhost:${PORT}/predict \
+                        -X POST http://${env.CONTAINER_IP}:${PORT}/predict \
                         -H 'Content-Type: application/json' \
                         -d @tests/invalid.json
                         """,
